@@ -1,0 +1,27 @@
+/* SwoVid Design Tokens — import this in every UI entry point */
+:root {
+  /* Verdict colours */
+  --sv-ai:        #DC2626;
+  --sv-human:     #16A34A;
+  --sv-likely-ai: #D97706;
+  --sv-unknown:   #94A3B8;
+
+  /* Brand */
+  --sv-navy:      #0F2444;
+  --sv-blue:      #1A6FBF;
+
+  /* Badge */
+  --badge-h:      28px;
+  --badge-r:      6px;
+  --badge-fs:     11px;
+  --badge-fw:     700;
+  --badge-offset: 6px;
+  --badge-z:      2147483647;
+
+  /* Surfaces */
+  --sv-bg:        #F8FAFC;
+  --sv-surface:   #FFFFFF;
+  --sv-text:      #1E293B;
+  --sv-muted:     #64748B;
+  --sv-border:    #E2E8F0;
+}
