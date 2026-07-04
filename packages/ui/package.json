@@ -1,0 +1,19 @@
+{
+  "name": "@swovid/ui",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "preact": "^10.22.0"
+  },
+  "devDependencies": {
+    "@swovid/detection": "workspace:*",
+    "typescript": "^5.4.0"
+  },
+  "peerDependencies": {
+    "preact": "^10.22.0"
+  }
+}
