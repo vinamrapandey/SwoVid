@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.turbo/
+
+# WASM assets copied at build time
+apps/extension/public/wasm/*.wasm
+apps/extension/public/wasm/worker.js
+
+# Env / logs
+*.log
+.DS_Store
+.env
+.env.local
