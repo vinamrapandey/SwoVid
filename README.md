@@ -62,15 +62,6 @@ cd apps/extension && pnpm dev
 Hot reload works for the popup / settings / onboarding pages. Content scripts and
 the service worker require a rebuild + extension reload.
 
-## Known limitations (V1)
-
-These are intentionally deferred, not bugs to file:
-
-1. **Popup page-summary is inert.** Nothing writes per-page summaries yet, and the
-   summary lookup keys off `sender.tab?.id` (undefined for popup messages), so the
-   popup shows "No images scanned yet." Requires wiring `savePageSummary` from the
-   content script and passing the tab id through.
-
 ## Manual test checklist
 
 **Detection**
@@ -95,4 +86,8 @@ These are intentionally deferred, not bugs to file:
 **Onboarding**
 - [ ] Opens on first install; 3 steps navigable; Finish closes tab
 - [ ] Does not reopen on later restarts
-```
+
+**Popup**
+- [ ] Toolbar popup shows this page's scan counts (Scanned / AI / Human)
+- [ ] Counts reset when the page is reloaded or navigated
+- [ ] Pause/Resume toggle stops/starts badging; Settings link opens options

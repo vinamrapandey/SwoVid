@@ -1,5 +1,5 @@
-import type { DetectionResult } from '@swovid/detection';
-import { getSettings, saveSettings, isOnboarded, getPageSummary } from '../shared/storage';
+import type { DetectionResult, PageScanSummary } from '@swovid/detection';
+import { getSettings, saveSettings, isOnboarded, getPageSummary, savePageSummary } from '../shared/storage';
 import { MSG, OFFSCREEN_PATH } from '../shared/constants';
 
 // ─────────────────────────────────────────────────────────────
@@ -52,14 +52,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === MSG.GET_PAGE_SUMMARY) {
-    const tabId = sender.tab?.id;
-    if (!tabId) { sendResponse(null); return; }
+    // Prefer the tabId supplied by the popup (its sender.tab is undefined);
+    // fall back to the sender's own tab for content-script callers.
+    const tabId = typeof message.tabId === 'number' ? message.tabId : sender.tab?.id;
+    if (typeof tabId !== 'number') { sendResponse(null); return; }
+    const inMem = summaries.get(tabId);
+    if (inMem) { sendResponse(inMem); return; }
     getPageSummary(tabId).then(sendResponse);
     return true;
   }
 
   if (message.type === MSG.DETECT_IMAGE) {
-    handleDetection(message).then(sendResponse);
+    const tabId = sender.tab?.id;
+    handleDetection(message).then(result => {
+      if (result && typeof tabId === 'number') recordVerdict(tabId, result.verdict);
+      sendResponse(result);
+    });
     return true;
   }
 
@@ -69,6 +77,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   return undefined;
+});
+
+// ─────────────────────────────────────────────────────────────
+// Per-tab scan summary (feeds the toolbar popup).
+// The in-memory map is authoritative for the current SW lifetime and is
+// mirrored to storage so the popup can read it. Updates are synchronous
+// (single-threaded event loop) so concurrent scans don't lose counts.
+// ─────────────────────────────────────────────────────────────
+const summaries = new Map<number, PageScanSummary>();
+
+function emptySummary(): PageScanSummary {
+  return { total: 0, verifiedAi: 0, likelyAi: 0, human: 0, unknown: 0 };
+}
+
+function recordVerdict(tabId: number, verdict: DetectionResult['verdict']): void {
+  const s = summaries.get(tabId) ?? emptySummary();
+  s.total += 1;
+  if (verdict === 'verified_ai') s.verifiedAi += 1;
+  else if (verdict === 'likely_ai' || verdict === 'possibly_ai') s.likelyAi += 1;
+  else if (verdict === 'verified_human') s.human += 1;
+  else s.unknown += 1;
+  summaries.set(tabId, s);
+  savePageSummary(tabId, s).catch(() => {});
+}
+
+// Reset a tab's summary when it starts navigating/reloading.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === 'loading') {
+    summaries.delete(tabId);
+    savePageSummary(tabId, emptySummary()).catch(() => {});
+  }
+});
+
+// Clean up storage when a tab closes.
+chrome.tabs.onRemoved.addListener(tabId => {
+  summaries.delete(tabId);
+  chrome.storage.local.remove(`pageSummary_${tabId}`);
 });
 
 // ─────────────────────────────────────────────────────────────
