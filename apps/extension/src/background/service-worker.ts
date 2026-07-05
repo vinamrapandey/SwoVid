@@ -1,11 +1,11 @@
-import { detectContent, clearCache } from '@swovid/detection';
-import type { DetectionInput } from '@swovid/detection';
-import { getSettings, saveSettings, isOnboarded, markOnboarded, getPageSummary } from '../shared/storage';
-import { MSG } from '../shared/constants';
+import type { DetectionResult } from '@swovid/detection';
+import { getSettings, saveSettings, isOnboarded, getPageSummary } from '../shared/storage';
+import { MSG, OFFSCREEN_PATH } from '../shared/constants';
 
 // ─────────────────────────────────────────────────────────────
 // Service worker — handles:
-// 1. Image detection requests from content scripts
+// 1. Image detection requests from content scripts (delegated to the
+//    offscreen document, which can run WASM + Web Workers)
 // 2. Settings reads/writes
 // 3. Onboarding tab on first install
 // 4. Context menu setup
@@ -26,9 +26,6 @@ chrome.runtime.onInstalled.addListener(async details => {
     title: 'Check with SwoVid',
     contexts: ['image'],
   });
-
-  // Clear detection cache on extension update
-  clearCache();
 });
 
 // ── Context menu click
@@ -62,7 +59,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === MSG.DETECT_IMAGE) {
-    handleDetection(message, sender).then(sendResponse);
+    handleDetection(message).then(sendResponse);
     return true;
   }
 
@@ -70,38 +67,61 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.runtime.openOptionsPage();
     sendResponse({ ok: true });
   }
+
+  return undefined;
 });
 
-// ── Clear cache when tab navigates
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status === 'loading') {
-    clearCache();
+// ─────────────────────────────────────────────────────────────
+// Offscreen document lifecycle. Created lazily on first detection and
+// reused for the rest of the session.
+// ─────────────────────────────────────────────────────────────
+let creating: Promise<void> | null = null;
+
+async function ensureOffscreen(): Promise<void> {
+  const offscreenUrl = chrome.runtime.getURL(OFFSCREEN_PATH);
+
+  // Already open?
+  const existing = await chrome.runtime.getContexts({
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+    documentUrls: [offscreenUrl],
+  });
+  if (existing.length > 0) return;
+
+  // A creation is already in flight — wait for it (avoids the
+  // "Only a single offscreen document may be created" error).
+  if (creating) {
+    await creating;
+    return;
   }
-});
+
+  creating = chrome.offscreen.createDocument({
+    url: OFFSCREEN_PATH,
+    reasons: [chrome.offscreen.Reason.WORKERS],
+    justification:
+      'Run C2PA (WASM + Web Worker) and EXIF image detection, which cannot run in the service worker.',
+  });
+  try {
+    await creating;
+  } finally {
+    creating = null;
+  }
+}
 
 async function handleDetection(
-  message: { src: string; blob?: string; contentHash: string },
-  _sender: chrome.runtime.MessageSender,
-): Promise<ReturnType<typeof detectContent>> {
+  message: { src: string; contentHash: string },
+): Promise<DetectionResult | null> {
   try {
-    // Fetch the image as a blob
-    const response = await fetch(message.src, { mode: 'cors' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const blob = await response.blob();
-
-    const input: DetectionInput = {
-      blob,
+    await ensureOffscreen();
+    const result: DetectionResult | null = await chrome.runtime.sendMessage({
+      type: MSG.OFFSCREEN_DETECT,
       src: message.src,
       contentHash: message.contentHash,
-      type: 'image',
-    };
-
-    return await detectContent(input);
+    });
+    return result ?? null;
   } catch (err) {
     if (process.env.NODE_ENV === 'development') {
       console.warn('[SwoVid SW] Detection failed for', message.src, err);
     }
-    throw err;
+    return null;
   }
 }

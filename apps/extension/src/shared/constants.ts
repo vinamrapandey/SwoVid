@@ -7,7 +7,13 @@ export const MSG = {
   GET_PAGE_SUMMARY:  'GET_PAGE_SUMMARY',
   OPEN_SETTINGS:     'OPEN_SETTINGS',
   SCAN_PAUSED:       'SCAN_PAUSED',
+  // Service worker → offscreen document: run detection (WASM/Worker capable).
+  OFFSCREEN_DETECT:  'OFFSCREEN_DETECT',
+  OFFSCREEN_CLEAR_CACHE: 'OFFSCREEN_CLEAR_CACHE',
 } as const;
+
+// Path (extension-root-relative) to the offscreen document that hosts detection.
+export const OFFSCREEN_PATH = 'src/offscreen/index.html';
 
 export type MessageType = typeof MSG[keyof typeof MSG];
 

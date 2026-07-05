@@ -70,6 +70,10 @@ async function scanImage(img: HTMLImageElement): Promise<void> {
     // Remove scanning badge
     scanningBadge?.remove();
 
+    // Detection may return null (fetch/detection failed) — treat as an error
+    // so we don't crash injecting a badge for a missing result.
+    if (!result) throw new Error('empty detection result');
+
     // Inject result badge
     injectBadge(img, result, s, (clickedImg, clickedResult) => {
       const rect = clickedImg.getBoundingClientRect();

@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => ({
         popup: 'src/popup/index.html',
         settings: 'src/settings/index.html',
         onboarding: 'src/onboarding/index.html',
+        offscreen: 'src/offscreen/index.html',
       },
     },
   },
