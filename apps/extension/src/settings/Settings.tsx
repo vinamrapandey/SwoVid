@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
 import type { SwoVidSettings } from '@swovid/detection';
 import { DEFAULT_SETTINGS } from '@swovid/detection';
 import { getSettings, saveSettings } from '../shared/storage';
@@ -152,7 +153,7 @@ export function Settings() {
 // ── Sub-components ──────────────────────────────────────────
 
 function Section({ title, description, children }: {
-  title: string; description: string; children: preact.ComponentChildren;
+  title: string; description: string; children: ComponentChildren;
 }) {
   return (
     <div style={{

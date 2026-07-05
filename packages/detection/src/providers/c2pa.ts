@@ -1,13 +1,41 @@
+import type { Manifest } from 'c2pa';
 import type { DetectionInput, DetectionProvider, DetectionSignal } from '../types';
 import { AI_C2PA_SOURCE_TYPES, HUMAN_C2PA_SOURCE_TYPES } from '../constants';
 
+// Gather every declared digitalSourceType from a manifest's action assertions.
+// Uses the typed assertion accessor so this stays type-safe against the SDK.
+function collectDigitalSourceTypes(manifest: Manifest): string[] {
+  const out: string[] = [];
+  const accessor = manifest.assertions;
+  if (!accessor) return out;
+
+  for (const a of accessor.get('c2pa.actions.v2')) {
+    if (!a) continue;
+    for (const action of a.data.actions ?? []) {
+      if (action.digitalSourceType) out.push(action.digitalSourceType);
+    }
+    for (const tpl of a.data.templates ?? []) {
+      if (tpl.digitalSourceType) out.push(tpl.digitalSourceType);
+    }
+  }
+
+  for (const a of accessor.get('c2pa.actions')) {
+    if (!a) continue;
+    for (const action of a.data.actions ?? []) {
+      if (action.digitalSourceType) out.push(action.digitalSourceType);
+    }
+  }
+
+  return out;
+}
+
 // c2pa-js is loaded lazily — WASM initialisation is expensive
 // and only needs to happen once per session.
-let c2paInstance: Awaited<ReturnType<typeof import('@contentauth/sdk').createC2pa>> | null = null;
+let c2paInstance: Awaited<ReturnType<typeof import('c2pa').createC2pa>> | null = null;
 
 async function getC2PA() {
   if (c2paInstance) return c2paInstance;
-  const { createC2pa } = await import('@contentauth/sdk');
+  const { createC2pa } = await import('c2pa');
   c2paInstance = await createC2pa({
     wasmSrc: chrome.runtime.getURL('wasm/toolkit_bg.wasm'),
     workerSrc: chrome.runtime.getURL('wasm/worker.js'),
@@ -38,28 +66,23 @@ export class C2PAProvider implements DetectionProvider {
           performance.now() - start);
       }
 
-      // Extract digitalSourceType from assertions
-      const assertions = manifest.assertions?.data ?? [];
+      // Extract digitalSourceType from the action assertions. Per the C2PA
+      // spec it lives on individual actions (c2pa.actions / c2pa.actions.v2)
+      // and action templates — not directly on the assertion data object.
+      const sourceTypes = collectDigitalSourceTypes(manifest);
 
-      // Check c2pa.assertions for digitalSourceType
-      for (const assertion of assertions) {
-        const sourceType: string | undefined =
-          assertion?.data?.digitalSourceType ??
-          assertion?.data?.['stds.iptc.photo-metadata']?.DigitalSourceType;
-
-        if (sourceType) {
-          if (AI_C2PA_SOURCE_TYPES.some(t => sourceType.includes(t))) {
-            const generator = manifest.claimGenerator?.split('/')[0] ?? 'Unknown tool';
-            return this.buildSignal('verified_ai', 100,
-              `C2PA credential confirms AI generation · Generator: ${generator}`,
-              performance.now() - start, true);
-          }
-          if (HUMAN_C2PA_SOURCE_TYPES.some(t => sourceType.includes(t))) {
-            const generator = manifest.claimGenerator?.split('/')[0] ?? 'Camera';
-            return this.buildSignal('verified_human', 100,
-              `C2PA credential confirms human/camera origin · Signed by: ${generator}`,
-              performance.now() - start, true);
-          }
+      for (const sourceType of sourceTypes) {
+        if (AI_C2PA_SOURCE_TYPES.some(t => sourceType.includes(t))) {
+          const generator = manifest.claimGenerator?.split('/')[0] ?? 'Unknown tool';
+          return this.buildSignal('verified_ai', 100,
+            `C2PA credential confirms AI generation · Generator: ${generator}`,
+            performance.now() - start, true);
+        }
+        if (HUMAN_C2PA_SOURCE_TYPES.some(t => sourceType.includes(t))) {
+          const generator = manifest.claimGenerator?.split('/')[0] ?? 'Camera';
+          return this.buildSignal('verified_human', 100,
+            `C2PA credential confirms human/camera origin · Signed by: ${generator}`,
+            performance.now() - start, true);
         }
       }
 

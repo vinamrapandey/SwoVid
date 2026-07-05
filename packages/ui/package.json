@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@swovid/detection": "workspace:*",
+    "@types/chrome": "^0.0.268",
     "typescript": "^5.4.0"
   },
   "peerDependencies": {

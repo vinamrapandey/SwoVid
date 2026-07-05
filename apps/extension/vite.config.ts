@@ -4,7 +4,12 @@ import { crx } from '@crxjs/vite-plugin';
 import manifest from './manifest.json';
 import path from 'path';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // Statically replace process.env.NODE_ENV so no runtime `process` reference
+  // remains in the content scripts / service worker (where `process` is undefined).
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(mode === 'development' ? 'development' : 'production'),
+  },
   plugins: [
     preact(),
     crx({ manifest }),
@@ -24,4 +29,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

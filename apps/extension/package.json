@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/copy-wasm.mjs",
+    "predev": "node scripts/copy-wasm.mjs",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview"

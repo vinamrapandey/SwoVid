@@ -1,3 +1,6 @@
+/// <reference types="chrome" />
+/// <reference path="./globals.d.ts" />
+
 // Public API of the detection package
 export { detectContent, clearCache, getCacheSize } from './orchestrator';
 export type {
