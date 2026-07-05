@@ -9,13 +9,14 @@ server, no backend, no API keys.
 
 | Layer | Source | Status |
 |------:|--------|--------|
-| 1 | **C2PA Content Credentials** (`c2pa` WASM) — cryptographic proof | Implemented¹ |
+| 1 | **C2PA Content Credentials** (`c2pa` WASM) — cryptographic proof | Implemented (runs in an offscreen document) |
 | 2 | **EXIF / IPTC / XMP metadata** (`exifr`) — probabilistic fingerprints | Implemented |
 | 3 | Stable Signature watermark | Stub — "Coming in V2" |
 | 4 | Video Seal watermark | Stub — "Coming in V2" |
 | 5 | SwoVid on-device model | Stub — "Coming in V3" |
 
-¹ See **Known limitations** below.
+Detection runs in an **offscreen document** (not the service worker), because
+the C2PA SDK needs WASM + Web Workers that MV3 service workers can't host.
 
 ## Monorepo layout
 
@@ -65,12 +66,7 @@ the service worker require a rebuild + extension reload.
 
 These are intentionally deferred, not bugs to file:
 
-1. **C2PA does not run inside the service worker.** Detection currently runs in
-   the MV3 service worker, which cannot spawn the Web Worker / WASM that the C2PA
-   SDK needs. As a result the Layer-1 cryptographic verdict falls back to "no
-   credential." The fix is to run detection in an **offscreen document**; the
-   `DetectionProvider` interface is unchanged by that move.
-2. **Popup page-summary is inert.** Nothing writes per-page summaries yet, and the
+1. **Popup page-summary is inert.** Nothing writes per-page summaries yet, and the
    summary lookup keys off `sender.tab?.id` (undefined for popup messages), so the
    popup shows "No images scanned yet." Requires wiring `savePageSummary` from the
    content script and passing the tab id through.
@@ -79,7 +75,7 @@ These are intentionally deferred, not bugs to file:
 
 **Detection**
 - [ ] Unsplash photo → "Human" or "Unknown"
-- [ ] Adobe Firefly image → "Verified AI" (once C2PA runs — see limitation 1)
+- [ ] Adobe Firefly image → "Verified AI" (C2PA)
 - [ ] Midjourney image with intact EXIF → "Likely/Possibly AI" (software tag)
 - [ ] Metadata-stripped image → "Unknown"
 - [ ] Right-click an image → "Check with SwoVid" context menu
