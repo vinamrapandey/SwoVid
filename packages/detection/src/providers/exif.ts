@@ -2,6 +2,13 @@ import exifr from 'exifr';
 import type { DetectionInput, DetectionProvider, DetectionSignal } from '../types';
 import { AI_SOFTWARE_TAGS, AI_IPTC_SOURCE_TYPES, HUMAN_IPTC_SOURCE_TYPES } from '../constants';
 
+// True if `tag` appears in `haystack` bounded by non-alphanumeric characters
+// (i.e. as a whole token), so "luma" does not match "lumafusion".
+function matchesAsToken(haystack: string, tag: string): boolean {
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(haystack);
+}
+
 export class EXIFProvider implements DetectionProvider {
   layer = 2;
   name = 'EXIF / IPTC Metadata';
@@ -27,8 +34,9 @@ export class EXIFProvider implements DetectionProvider {
       });
 
       if (!exif) {
-        return this.buildSignal('unverifiable', 30,
-          'No metadata found in this file', false, performance.now() - start);
+        return this.buildSignal('unverifiable', 0,
+          'No metadata in this file — cannot determine origin from metadata',
+          false, performance.now() - start);
       }
 
       // ── Check 1: IPTC DigitalSourceType (most authoritative metadata signal)
@@ -52,7 +60,9 @@ export class EXIFProvider implements DetectionProvider {
       const software: string | undefined = exif.Software ?? exif.software ?? exif.ProcessingSoftware;
       if (software) {
         const softwareLower = software.toLowerCase().trim();
-        const matchedTool = AI_SOFTWARE_TAGS.find(tag => softwareLower.includes(tag));
+        // Match whole tokens, not raw substrings, so "luma" doesn't match
+        // "LumaFusion" and "dream" doesn't match "Dreamweaver".
+        const matchedTool = AI_SOFTWARE_TAGS.find(tag => matchesAsToken(softwareLower, tag));
         if (matchedTool) {
           return this.buildSignal('likely_ai', 88,
             `Software tag: "${software}" — known AI generation tool`,
@@ -60,9 +70,8 @@ export class EXIFProvider implements DetectionProvider {
         }
       }
 
-      // ── Check 3: Camera metadata presence (probabilistic)
+      // ── Check 3: Camera metadata presence (indicates a real photo)
       const hasCameraData = !!(exif.Make || exif.Model || exif.LensModel);
-      const hasDatetime = !!(exif.DateTimeOriginal || exif.CreateDate);
       const hasGPS = !!(exif.latitude || exif.longitude || exif.GPSLatitude);
 
       if (hasCameraData) {
@@ -72,15 +81,15 @@ export class EXIFProvider implements DetectionProvider {
           false, performance.now() - start);
       }
 
-      // No camera data, no software tag, no IPTC → weakly suspicious
-      if (!hasCameraData && !hasDatetime && !software) {
-        return this.buildSignal('possibly_ai', 45,
-          'No camera metadata, creation date, or software tag — common in AI-generated images',
-          false, performance.now() - start);
-      }
-
-      return this.buildSignal('unverifiable', 20,
-        'Metadata present but no conclusive AI or human signals found',
+      // ── No positive signal either way.
+      // IMPORTANT: the ABSENCE of metadata is NOT evidence of AI. The vast
+      // majority of web images have metadata stripped (logos, icons,
+      // screenshots, CDN-optimised photos, anything re-saved by a social
+      // platform). Guessing "AI" here produces false positives on almost
+      // every image. Metadata-only detection can confirm AI/human only from a
+      // POSITIVE signal; otherwise we honestly report "unverifiable".
+      return this.buildSignal('unverifiable', 0,
+        'No AI or camera signals in metadata — cannot determine from metadata alone',
         false, performance.now() - start);
 
     } catch (err) {
