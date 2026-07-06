@@ -11,12 +11,17 @@ server, no backend, no API keys.
 |------:|--------|--------|
 | 1 | **C2PA Content Credentials** (`c2pa` WASM) — cryptographic proof | Implemented (runs in an offscreen document) |
 | 2 | **EXIF / IPTC / XMP metadata** (`exifr`) — probabilistic fingerprints | Implemented |
-| 3 | Stable Signature watermark | Stub — "Coming in V2" |
+| 3 | Stable Signature watermark | Stub — "Coming in V2" ([scoping doc](docs/v2-stable-signature.md)) |
 | 4 | Video Seal watermark | Stub — "Coming in V2" |
 | 5 | SwoVid on-device model | Stub — "Coming in V3" |
 
 Detection runs in an **offscreen document** (not the service worker), because
 the C2PA SDK needs WASM + Web Workers that MV3 service workers can't host.
+
+> **Scope note:** metadata (C2PA/EXIF) can only *confirm* AI or human from a
+> positive signal; most web images legitimately come back **Unknown**. Catching
+> metadata-stripped AI images needs the pixel-level watermark/forensic layers —
+> see [docs/v2-stable-signature.md](docs/v2-stable-signature.md).
 
 ## Monorepo layout
 
